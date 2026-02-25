@@ -145,8 +145,9 @@ function dash() {
     lastDash = now;
 
     const dir = new THREE.Vector3();
-    camera.getDirection(dir);
+    camera.getWorldDirection(dir);
     dir.y = 0;
+    dir.normalize();
     velocity.add(dir.multiplyScalar(CONFIG.dashForce));
 
     document.getElementById('dash-indicator').style.width = '0%';

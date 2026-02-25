@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ULTRACOPY | GAIOT O LEGAL</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Meta tags SEO -->
+    <meta name="description" content="UltraCopy: Retro Fast-paced FPS inspirado em Ultrakill. Dash, Parry e estilo PS1!">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Pixel Overlay Shader-like -->
+        <div id="pixel-overlay"></div>
+
+        <!-- Crosshair -->
+        <div class="crosshair"></div>
+
+        <!-- Feedback de Tela (Dano/Cura) -->
+        <div id="screen-flash" style="position:absolute; width:100%; height:100%; pointer-events:none; opacity:0; transition: opacity 0.1s;"></div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div class="stats-panel" id="health-panel">
+                <div class="stat-label">HEALTH // CURA</div>
+                <div class="stat-value" id="health-text">100</div>
+                <div id="health-bar-container">
+                    <div id="health-bar"></div>
+                </div>
+            </div>
+
+            <div class="stats-panel" id="weapon-panel">
+                <div class="stat-label">WEAPON // ARMA</div>
+                <div class="stat-value" id="weapon-name">REVERBERADOR</div>
+                <div id="dash-indicator"></div>
+                <div class="stat-label" style="font-size: 8px; margin-top: 5px;">SHIFT: DASH // F: PARRY</div>
+            </div>
+        </div>
+
+        <div id="interaction-msg">Pressione [E] para Salvar</div>
+
+        <!-- Menu Inicial -->
+        <div id="start-menu" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:100; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+            <h1 style="font-family:'Press Start 2P'; color:var(--primary); font-size:48px; margin-bottom:20px;">ULTRACOPY</h1>
+            <p style="color:var(--accent); margin-bottom:40px;">W A S D - MOVER | SHIFT - DASH | F - PARRY | 1, 2 - ARMAS</p>
+            <button id="start-btn" style="padding:15px 40px; font-family:'Press Start 2P'; background:var(--primary); color:white; border:none; cursor:pointer; font-size:20px; box-shadow: 4px 4px 0px white;">START GAME</button>
+        </div>
+    </div>
+
+    <!-- Bibliotecas Externas (Usando Three.js 0.160.0) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three-addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

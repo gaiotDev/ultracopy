@@ -136,6 +136,7 @@ function handleInputs(e) {
     if (e.code === 'KeyE') interact();
     if (e.code === 'Digit1') switchWeapon('pistol');
     if (e.code === 'Digit2') switchWeapon('shotgun');
+    if (e.code === 'Digit3') switchWeapon('instant_kill');
 }
 
 function dash() {
@@ -178,8 +179,12 @@ function interact() {
 
 function switchWeapon(type) {
     currentWeapon = type;
-    document.getElementById('weapon-name').innerText = type.toUpperCase();
-    weaponMesh.material.color.setHex(type === 'pistol' ? 0x555555 : 0xaa5500);
+    let name = type.toUpperCase().replace('_', ' ');
+    document.getElementById('weapon-name').innerText = name;
+
+    if (type === 'pistol') weaponMesh.material.color.setHex(0x555555);
+    else if (type === 'shotgun') weaponMesh.material.color.setHex(0xaa5500);
+    else if (type === 'instant_kill') weaponMesh.material.color.setHex(0xffd700); // Dourado
 }
 
 function shoot() {
@@ -187,14 +192,22 @@ function shoot() {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(0, 0), camera);
 
-    const factor = currentWeapon === 'pistol' ? 1 : 5;
-    for (let i = 0; i < factor; i++) {
-        const spread = currentWeapon === 'pistol' ? new THREE.Vector2(0, 0) : new THREE.Vector2((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2);
-        ray.setFromCamera(spread, camera);
+    if (currentWeapon === 'instant_kill') {
         const hits = ray.intersectObjects(enemies.map(e => e.mesh));
         if (hits.length > 0) {
             const enemy = enemies.find(e => e.mesh === hits[0].object);
-            enemy.takeDamage(currentWeapon === 'pistol' ? 25 : 15);
+            enemy?.takeDamage(9999);
+        }
+    } else {
+        const factor = currentWeapon === 'pistol' ? 1 : 5;
+        for (let i = 0; i < factor; i++) {
+            const spread = currentWeapon === 'pistol' ? new THREE.Vector2(0, 0) : new THREE.Vector2((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2);
+            ray.setFromCamera(spread, camera);
+            const hits = ray.intersectObjects(enemies.map(e => e.mesh));
+            if (hits.length > 0) {
+                const enemy = enemies.find(e => e.mesh === hits[0].object);
+                enemy?.takeDamage(currentWeapon === 'pistol' ? 25 : 15);
+            }
         }
     }
     setTimeout(() => weaponGroup.position.z -= 0.2, 50);

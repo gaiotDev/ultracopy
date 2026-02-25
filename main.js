@@ -20,6 +20,14 @@ let playerHealth = 100, currentWeapon = 'pistol', canDash = true, lastDash = 0;
 let enemies = [], projectiles = [], interactiveObjects = [], collidables = [];
 let weaponGroup = new THREE.Group(), weaponMesh;
 
+// Grappling Hook State
+let grappleState = {
+    active: false,
+    target: new THREE.Vector3(),
+    line: null,
+    speed: 0.4
+};
+
 // --- INICIALIZAÇÃO ---
 function init() {
     scene = new THREE.Scene();
@@ -70,8 +78,8 @@ function generateWorld() {
     scene.add(sun);
 
     // SALA 1 (ARENA - MAGENTA & CYAN)
-    createBox(0, -0.5, 0, 30, 1, 30, 0xff00ff, false); // Chão Magenta
-    createBox(0, 10, 0, 30, 1, 30, 0x440044, false);  // Teto Roxo Escuro
+    createBox(0, -0.5, 0, 30, 1, 30, 0xff00ff, false); // Chão Magenta (Não-colidível para Gancho)
+    createBox(0, 10, 0, 30, 1, 30, 0x440044, true);  // Teto Roxo Escuro (Colidível)
 
     // Parede Norte com BURACO (Z = -15.5)
     createBox(-10.5, 5, -15, 9, 10, 1, 0x00ffff); // Esquerda
@@ -84,7 +92,7 @@ function generateWorld() {
 
     // CORREDOR E SAVE (AMARELO & LARANJA)
     createBox(0, -0.5, -30, 12, 1, 30, 0xffff00, false); // Chão Amarelo
-    createBox(0, 10, -30, 12, 1, 30, 0xffaa00, false);   // Teto Laranja
+    createBox(0, 10, -30, 12, 1, 30, 0xffaa00, true);   // Teto Laranja
     createBox(-6.5, 5, -30, 1, 10, 30, 0xff4400);   // Parede Esquerda
     createBox(6.5, 5, -30, 1, 10, 30, 0xff4400);    // Parede Direita
 
@@ -103,8 +111,8 @@ function generateWorld() {
     createBox(0, 22.5, -45, 24, 15, 1, 0xff0000);  // Topo
 
     // SALA 2 (FINAL - NEON GREEN & BLOOD RED)
-    createBox(0, -0.5, -80, 50, 1, 70, 0x39ff14, false); // Chão Verde Neon
-    createBox(0, 30, -80, 50, 1, 70, 0x0000ff, false);   // Teto Azul
+    createBox(0, -0.5, -80, 50, 1, 70, 0x39ff14, false); // Chão Arena (Não-colidível)
+    createBox(0, 30, -80, 50, 1, 70, 0x0000ff, true);   // Teto Azul (Colidível)
     createBox(0, 15, -115.5, 50, 30, 1, 0xff0000);  // Parede Fundo
     createBox(-25.5, 15, -80, 1, 30, 70, 0xff0000); // Lateral Esquerda
     createBox(25.5, 15, -80, 1, 30, 70, 0xff0000);  // Lateral Direita
@@ -137,6 +145,7 @@ function handleInputs(e) {
     if (e.code === 'Digit1') switchWeapon('pistol');
     if (e.code === 'Digit2') switchWeapon('shotgun');
     if (e.code === 'Digit3') switchWeapon('instant_kill');
+    if (e.code === 'Digit4') switchWeapon('grapple');
 }
 
 function dash() {
@@ -194,10 +203,32 @@ function switchWeapon(type) {
         weaponMesh.material.color.setHex(0xffff00); // Amarelo Neon
         document.querySelector('.crosshair').style.borderColor = '#ffffff';
         flashScreen('rgba(255,255,0,0.2)'); // Piscar a tela amarelo ao equipar
+    } else if (type === 'grapple') {
+        weaponMesh.material.color.setHex(0x00ff00); // Verde Batman
+        document.querySelector('.crosshair').style.borderColor = '#00ff00';
     }
 }
 
 function shoot() {
+    if (currentWeapon === 'grapple') {
+        if (grappleState.active) {
+            cancelGrapple();
+            return;
+        }
+
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hits = ray.intersectObjects([...collidables, ...enemies.map(e => e.mesh)]);
+
+        if (hits.length > 0) {
+            // Se o normal da face for para cima (Y > 0.5), é um chão. Não grudar.
+            if (hits[0].face.normal.y <= 0.5) {
+                startGrapple(hits[0].point);
+            }
+        }
+        return;
+    }
+
     weaponGroup.position.z += 0.2;
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(0, 0), camera);
@@ -224,6 +255,26 @@ function shoot() {
         }
     }
     setTimeout(() => weaponGroup.position.z -= 0.2, 50);
+}
+
+function startGrapple(point) {
+    grappleState.active = true;
+    grappleState.target.copy(point);
+
+    // Create line mesh
+    const points = [camera.position, point];
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    grappleState.line = new THREE.Line(geometry, material);
+    scene.add(grappleState.line);
+}
+
+function cancelGrapple() {
+    grappleState.active = false;
+    if (grappleState.line) {
+        scene.remove(grappleState.line);
+        grappleState.line = null;
+    }
 }
 
 // --- ENEMIES & COMBAT ---
@@ -313,7 +364,29 @@ function animate() {
     const delta = clock.getDelta();
 
     // Física de Gravidade
-    velocity.y -= CONFIG.gravity;
+    if (!grappleState.active) velocity.y -= CONFIG.gravity;
+
+    // Grappling Hook Movement
+    if (grappleState.active) {
+        const dir = new THREE.Vector3().subVectors(grappleState.target, camera.position);
+        if (dir.length() < 2) {
+            cancelGrapple();
+        } else {
+            dir.normalize();
+            velocity.add(dir.multiplyScalar(grappleState.speed));
+
+            // Ativar visual da corda
+            if (grappleState.line) {
+                const positions = grappleState.line.geometry.attributes.position.array;
+                // Posição 0: Câmera (Origem)
+                positions[0] = camera.position.x;
+                positions[1] = camera.position.y - 0.2;
+                positions[2] = camera.position.z;
+                // Posição 1: Alvo (Já está fixo)
+                grappleState.line.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+    }
 
     // Inputs de movimento (WASD corrigido para direção da câmera)
     let moveForward = Number(keys['KeyW'] || 0) - Number(keys['KeyS'] || 0);

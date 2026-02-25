@@ -183,9 +183,18 @@ function switchWeapon(type) {
     let name = type.toUpperCase().replace('_', ' ');
     document.getElementById('weapon-name').innerText = name;
 
-    if (type === 'pistol') weaponMesh.material.color.setHex(0x555555);
-    else if (type === 'shotgun') weaponMesh.material.color.setHex(0xaa5500);
-    else if (type === 'instant_kill') weaponMesh.material.color.setHex(0xffd700); // Dourado
+    // Feedback visual da arma
+    if (type === 'pistol') {
+        weaponMesh.material.color.setHex(0x555555);
+        document.querySelector('.crosshair').style.borderColor = 'var(--accent)';
+    } else if (type === 'shotgun') {
+        weaponMesh.material.color.setHex(0xaa5500);
+        document.querySelector('.crosshair').style.borderColor = '#ff4400';
+    } else if (type === 'instant_kill') {
+        weaponMesh.material.color.setHex(0xffff00); // Amarelo Neon
+        document.querySelector('.crosshair').style.borderColor = '#ffffff';
+        flashScreen('rgba(255,255,0,0.2)'); // Piscar a tela amarelo ao equipar
+    }
 }
 
 function shoot() {
@@ -197,7 +206,10 @@ function shoot() {
         const hits = ray.intersectObjects(enemies.map(e => e.mesh));
         if (hits.length > 0) {
             const enemy = enemies.find(e => e.mesh === hits[0].object);
-            enemy?.takeDamage(9999);
+            if (enemy) {
+                enemy.takeDamage(100000); // Dano massivo
+                flashScreen('rgba(255,255,255,0.5)'); // Clarão ao matar
+            }
         }
     } else {
         const factor = currentWeapon === 'pistol' ? 1 : 5;

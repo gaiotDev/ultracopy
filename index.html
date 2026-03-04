@@ -40,6 +40,14 @@
                 <div id="dash-indicator"></div>
                 <div class="stat-label" style="font-size: 8px; margin-top: 5px;">SHIFT: DASH // F: PARRY</div>
             </div>
+
+            <!-- Boss Health Bar -->
+            <div id="boss-hud" style="display:none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; text-align: center; z-index: 15;">
+                <div class="stat-label" style="font-size: 14px; margin-bottom: 5px; color: #ff0000; text-shadow: 2px 2px #000;">THE SCORPION // ANIPHILADOR</div>
+                <div style="width: 100%; height: 12px; background: #220000; border: 2px solid #ff0000; box-shadow: 0 0 10px #ff0000;">
+                    <div id="boss-health-bar" style="width: 100%; height: 100%; background: #ff0000; transition: width 0.1s;"></div>
+                </div>
+            </div>
         </div>
 
         <div id="interaction-msg">Pressione [E] para Salvar</div>

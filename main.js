@@ -28,6 +28,9 @@ let grappleState = {
     speed: 0.4
 };
 
+// Boss State
+let boss = null;
+
 // --- INICIALIZAÇÃO ---
 function init() {
     scene = new THREE.Scene();
@@ -113,9 +116,13 @@ function generateWorld() {
     // SALA 2 (FINAL - NEON GREEN & BLOOD RED)
     createBox(0, -0.5, -80, 50, 1, 70, 0x39ff14, false); // Chão Arena (Não-colidível)
     createBox(0, 30, -80, 50, 1, 70, 0x0000ff, true);   // Teto Azul (Colidível)
-    createBox(0, 15, -115.5, 50, 30, 1, 0xff0000);  // Parede Fundo
-    createBox(-25.5, 15, -80, 1, 30, 70, 0xff0000); // Lateral Esquerda
     createBox(25.5, 15, -80, 1, 30, 70, 0xff0000);  // Lateral Direita
+
+    // Parede Fundo Sala 2 com ABERTURA para o Boss (Z = -115.5)
+    createBox(-19, 15, -115.5, 12, 30, 1, 0xff0000); // Esquerda
+    createBox(19, 15, -115.5, 12, 30, 1, 0xff0000);  // Direita
+    createBox(0, 22.5, -115.5, 26, 15, 1, 0xff0000); // Topo
+
     // Parede Frontal da Sala 2 (Z = -45.5 aproximado)
     createBox(-15.5, 15, -45, 19, 30, 1, 0xff0000); // Left 1
     createBox(15.5, 15, -45, 19, 30, 1, 0xff0000);  // Right 1
@@ -126,6 +133,39 @@ function generateWorld() {
     spawnEnemy('Drone', 0, 12, -70);
     spawnEnemy('Drone', 10, 15, -80);
     spawnEnemy('Sentinela', 0, 1, -95);
+
+    // SALA DO CHEFE (BOSS ROOM - DARK RED & BLACK)
+    // Conector/Portão para o Boss (Z = -115)
+    createBox(0, 5, -115, 12, 10, 5, 0x111111); // Bloco de transição
+
+    // Arena do Boss (Z = -180)
+    createBox(0, -0.5, -180, 60, 1, 80, 0x00ffff, false); // Chão Ciano Vibrante
+    createBox(0, 30, -180, 60, 1, 80, 0xff00ff, true);   // Teto Magenta Vibrante
+
+    // Parede Fundo com BURACO de Saída (Z = -220.5)
+    createBox(-20, 15, -220.5, 20, 30, 1, 0xffff00); // Esquerda Amarela
+    createBox(20, 15, -220.5, 20, 30, 1, 0xffff00);  // Direita Amarela
+    createBox(0, 22.5, -220.5, 20, 15, 1, 0xffff00); // Topo
+    // Buraco central (0, 7.5, -220.5) com 20x15 está vazio agora
+
+    createBox(-30.5, 15, -180, 1, 30, 80, 0x00ff00); // Parede Oeste Verde Neon
+    createBox(30.5, 15, -180, 1, 30, 80, 0x00ff00);  // Parede Leste Verde Neon
+    createBox(0, 15, -139.5, 60, 30, 1, 0x00ff00);  // Parede Entrada
+
+    // SPAWN BOSS
+    boss = new ScorpionBoss(0, 3, -190);
+    enemies.push(boss);
+
+    // CORREDOR DE RETORNO (LOOP PARA A SALA 1)
+    // Conecta o fundo da arena do boss (Z = -220) lateralmente de volta ao início
+    createBox(-40, -0.5, -220, 40, 1, 15, 0x550055, false); // Saída lateral
+    createBox(-55, -0.5, -100, 15, 1, 260, 0x550055, false); // Corredor longo
+    createBox(-55, 10, -100, 15, 1, 260, 0x330033, true);   // Teto
+    createBox(-62.5, 5, -100, 1, 10, 260, 0x00ffff);        // Parede externa
+    createBox(-47.5, 5, -80, 1, 10, 220, 0x00ffff);         // Parede interna
+
+    // Conexão final com a Sala 1 (Z = 10)
+    createBox(-30, -0.5, 5, 40, 1, 15, 0x00ffff, false);
 }
 
 function createBox(x, y, z, w, h, d, col, collidable = true) {
@@ -170,7 +210,7 @@ function parry() {
     ray.far = 4;
 
     projectiles.forEach((p, i) => {
-        if (ray.ray.distanceToPoint(p.position) < 1.5) {
+        if (p.isParryable !== false && ray.ray.distanceToPoint(p.position) < 1.4) {
             p.velocity.multiplyScalar(-2);
             p.isReflected = true;
             heal(20);
@@ -234,23 +274,51 @@ function shoot() {
     ray.setFromCamera(new THREE.Vector2(0, 0), camera);
 
     if (currentWeapon === 'instant_kill') {
-        const hits = ray.intersectObjects(enemies.map(e => e.mesh));
+        const hits = ray.intersectObjects(enemies.flatMap(e => e.weakPoint ? [e.mesh, e.weakPoint] : [e.mesh]));
         if (hits.length > 0) {
-            const enemy = enemies.find(e => e.mesh === hits[0].object);
+            // Priorizar o weakPoint se houver vários acertos
+            let hitWeakpoint = hits.find(h => enemies.some(e => e.weakPoint === h.object));
+            const hitObj = hitWeakpoint ? hitWeakpoint.object : hits[0].object;
+            const enemy = enemies.find(e => e.mesh === hitObj || (e.weakPoint && e.weakPoint === hitObj));
+
             if (enemy) {
-                enemy.takeDamage(100000); // Dano massivo
-                flashScreen('rgba(255,255,255,0.5)'); // Clarão ao matar
+                if (enemy.type === 'ScorpionBoss') {
+                    if (hitObj === enemy.weakPoint) {
+                        enemy.takeDamage(500); // Super dano
+                        flashScreen('rgba(255,255,0,0.6)');
+                    }
+                } else {
+                    enemy.takeDamage(100000);
+                    flashScreen('rgba(255,255,255,0.5)');
+                }
             }
         }
     } else {
-        const factor = currentWeapon === 'pistol' ? 1 : 5;
+        const factor = currentWeapon === 'pistol' ? 1 : 10; // Mais estilhaços para shotgun
         for (let i = 0; i < factor; i++) {
-            const spread = currentWeapon === 'pistol' ? new THREE.Vector2(0, 0) : new THREE.Vector2((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2);
+            const spread = currentWeapon === 'pistol' ? new THREE.Vector2(0, 0) : new THREE.Vector2((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3);
             ray.setFromCamera(spread, camera);
-            const hits = ray.intersectObjects(enemies.map(e => e.mesh));
+
+            // Check enemies AND boss weakpoint
+            const targets = enemies.flatMap(e => e.weakPoint ? [e.mesh, e.weakPoint] : [e.mesh]);
+            const hits = ray.intersectObjects(targets);
+
             if (hits.length > 0) {
-                const enemy = enemies.find(e => e.mesh === hits[0].object);
-                enemy?.takeDamage(currentWeapon === 'pistol' ? 25 : 15);
+                // Priorizar o weakPoint
+                let hitWeakpoint = hits.find(h => enemies.some(e => e.weakPoint === h.object));
+                const hitObj = hitWeakpoint ? hitWeakpoint.object : hits[0].object;
+                const enemy = enemies.find(e => e.mesh === hitObj || (e.weakPoint && e.weakPoint === hitObj));
+
+                if (enemy) {
+                    if (enemy.type === 'ScorpionBoss') {
+                        if (hitObj === enemy.weakPoint) {
+                            enemy.takeDamage(currentWeapon === 'pistol' ? 20 : 10);
+                            flashScreen('rgba(255,0,0,0.3)');
+                        }
+                    } else {
+                        enemy.takeDamage(currentWeapon === 'pistol' ? 25 : 15);
+                    }
+                }
             }
         }
     }
@@ -314,6 +382,94 @@ class Enemy {
         if (this.hp <= 0) {
             scene.remove(this.mesh);
             enemies = enemies.filter(e => e !== this);
+        }
+    }
+}
+
+class ScorpionBoss extends Enemy {
+    constructor(x, y, z) {
+        super('ScorpionBoss', x, y, z);
+        this.hp = 1000;
+        this.angle = 0;
+
+        // Custom Mesh for Boss (Scorpion-like)
+        scene.remove(this.mesh);
+        this.group = new THREE.Group();
+        this.group.position.set(x, y, z);
+
+        // Body (Dark Blue)
+        const body = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 6), new THREE.MeshLambertMaterial({ color: 0x000044 }));
+        this.group.add(body);
+        this.mesh = body; // For reference in some logic
+
+        // Tail (Dark Blue)
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), new THREE.MeshLambertMaterial({ color: 0x000022 }));
+        tail.position.set(0, 3, 3);
+        this.group.add(tail);
+
+        // WEAK POINT (The Red Part) - AUMENTADO E MAIS PROTRAÍDO
+        this.weakPoint = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.5, 0.8), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+        this.weakPoint.position.set(0, 0.5, -3.2); // Fica à frente do corpo azul
+        this.group.add(this.weakPoint);
+
+        scene.add(this.group);
+    }
+
+    update() {
+        // Look at player
+        this.group.lookAt(camera.position.x, this.group.position.y, camera.position.z);
+
+        // Movement: Circle the arena center lightly
+        this.angle += 0.01;
+        this.group.position.x = Math.sin(this.angle) * 10;
+        this.group.position.z = -180 + Math.cos(this.angle) * 5;
+
+        // Mostrar HUD se o player estiver perto
+        const dist = camera.position.distanceTo(this.group.position);
+        const hud = document.getElementById('boss-hud');
+        if (dist < 40) {
+            hud.style.display = 'block';
+            this.updateHUD();
+        } else {
+            hud.style.display = 'none';
+        }
+
+        // Attacks
+        if (Math.random() < 0.03) this.fireStinger(); // Unparryable
+        if (Math.random() < 0.01) this.fireBurst();   // Parryable
+    }
+
+    fireStinger() {
+        const p = createBox(this.group.position.x, this.group.position.y + 4, this.group.position.z, 0.8, 0.8, 0.8, 0xffaa00, false);
+        p.velocity = new THREE.Vector3().subVectors(camera.position, p.position).normalize().multiplyScalar(0.4);
+        p.isParryable = false; // MECÂNICA PEDIDA
+        p.material.emissive = new THREE.Color(0xff4400);
+        projectiles.push(p);
+    }
+
+    fireBurst() {
+        for (let i = 0; i < 3; i++) {
+            const p = createBox(this.group.position.x + (i - 1), this.group.position.y + 1, this.group.position.z, 0.4, 0.4, 0.4, 0x00ffff, false);
+            p.velocity = new THREE.Vector3().subVectors(camera.position, p.position).normalize().multiplyScalar(0.2);
+            projectiles.push(p);
+        }
+    }
+
+    updateHUD() {
+        const bar = document.getElementById('boss-health-bar');
+        const percentage = (this.hp / 1000) * 100;
+        bar.style.width = Math.max(0, percentage) + '%';
+    }
+
+    takeDamage(d) {
+        this.hp -= d;
+        this.updateHUD();
+        flashScreen('rgba(255, 0, 0, 0.3)');
+        if (this.hp <= 0) {
+            document.getElementById('boss-hud').style.display = 'none';
+            scene.remove(this.group);
+            enemies = enemies.filter(e => e !== this);
+            alert("MAQUINÁRIO DESTRUÍDO: ESCORPIÃO ANIQUILADO");
         }
     }
 }
